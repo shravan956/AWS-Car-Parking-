@@ -9,8 +9,7 @@ import {
   Settings,
   Car,
   Cloud,
-  Layers,
-  Activity,
+  Database,
 } from 'lucide-react';
 import { useParking } from '../../context/ParkingContext';
 
@@ -19,7 +18,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
-  const { stats, isSimulating } = useParking();
+  const { stats, events, awsConfig } = useParking();
 
   const navItems = [
     {
@@ -33,18 +32,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       label: 'Live Parking',
       icon: Grid3X3,
       badge: `${stats.availableSlots} Free`,
-      badgeColor: 'bg-emerald-100 text-emerald-800',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
     },
     {
       to: '/iot-devices',
       label: 'IoT Devices',
       icon: Radio,
-      badge: `${stats.sensorsOnline}/30`,
+      badge: `${stats.totalSlots} Nodes`,
     },
     {
       to: '/activity-logs',
       label: 'Activity Logs',
       icon: FileText,
+      badge: events.length > 0 ? `${events.length}` : undefined,
     },
     {
       to: '/analytics',
@@ -58,13 +58,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     },
   ];
 
+  const safeTotal = stats.totalSlots > 0 ? stats.totalSlots : 1;
+  const occPercent = Math.min(100, Math.round((stats.occupiedSlots / safeTotal) * 100));
+  const availPercent = Math.min(100, Math.round((stats.availableSlots / safeTotal) * 100));
+
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col justify-between h-full border-r border-slate-800 select-none">
       <div>
         {/* Logo and Brand */}
         <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-brand-700 to-blue-500 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-blue-700 to-blue-500 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
               <Car className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div>
@@ -76,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               </div>
               <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
                 <Cloud className="w-3 h-3 text-blue-400" />
-                <span>AWS IoT Console</span>
+                <span>AWS IoT Monitor</span>
               </p>
             </div>
           </div>
@@ -89,31 +93,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               Facility Status
             </span>
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
-              <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${isSimulating ? 'animate-ping-subtle' : ''}`} />
-              {isSimulating ? 'Live Telemetry' : 'Paused'}
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              Live AWS Feed
             </span>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-white font-bold text-sm">30 Multi-Level Bays</span>
+            <span className="text-white font-bold text-sm">
+              {stats.totalSlots} Slots Total
+            </span>
             <span className="text-slate-400 text-[11px]">3 Floors</span>
           </div>
+
           {/* Mini progress bar */}
           <div className="w-full bg-slate-700 rounded-full h-1.5 mt-2 overflow-hidden flex">
             <div
               className="bg-rose-500 h-full transition-all duration-300"
-              style={{ width: `${stats.occupancyRate}%` }}
+              style={{ width: `${occPercent}%` }}
               title={`Occupied: ${stats.occupiedSlots}`}
             />
             <div
-              className="bg-amber-400 h-full transition-all duration-300"
-              style={{ width: `${(stats.reservedSlots / stats.totalSlots) * 100}%` }}
-              title={`Reserved: ${stats.reservedSlots}`}
-            />
-            <div
               className="bg-emerald-500 h-full transition-all duration-300"
-              style={{ width: `${(stats.availableSlots / stats.totalSlots) * 100}%` }}
+              style={{ width: `${availPercent}%` }}
               title={`Available: ${stats.availableSlots}`}
             />
+          </div>
+
+          <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1.5">
+            <span className="text-emerald-400 font-medium">{stats.availableSlots} Available</span>
+            <span className="text-rose-400 font-medium">{stats.occupiedSlots} Occupied</span>
           </div>
         </div>
 
@@ -154,17 +161,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       {/* Bottom Footer Info */}
       <div className="p-4 border-t border-slate-800 text-[11px] text-slate-500 space-y-2">
         <div className="flex items-center justify-between">
-          <span>Engine Mode</span>
-          <span className="font-semibold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 text-[10px]">
-            DEMO SIMULATOR
+          <span>Data Source</span>
+          <span className="font-semibold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20 text-[10px] flex items-center gap-1">
+            <Database className="w-3 h-3" />
+            <span>DynamoDB</span>
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span>MQTT Broker</span>
-          <span className="text-slate-400 font-mono text-[10px]">AWS IoT Core</span>
+          <span>AWS Region</span>
+          <span className="text-slate-400 font-mono text-[10px]">{awsConfig.region}</span>
         </div>
         <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-800/80">
-          SmartPark Cloud v2.5.0
+          SmartPark Cloud &bull; View-Only
         </div>
       </div>
     </aside>

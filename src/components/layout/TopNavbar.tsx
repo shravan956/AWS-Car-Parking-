@@ -4,16 +4,11 @@ import { useParking } from '../../context/ParkingContext';
 import {
   Search,
   Bell,
-  Play,
-  Pause,
   RefreshCw,
-  Globe,
   Menu,
   X,
-  Zap,
-  CheckCircle,
   AlertTriangle,
-  Info,
+  CheckCircle2,
   Car,
 } from 'lucide-react';
 
@@ -24,19 +19,16 @@ interface TopNavbarProps {
 export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
   const location = useLocation();
   const {
-    isSimulating,
-    toggleSimulation,
-    simulationInterval,
-    setSimulationInterval,
-    triggerManualEvent,
     notifications,
     dismissNotification,
     clearAllNotifications,
     searchQuery,
     setSearchQuery,
+    lastApiTimestamp,
     lastRefreshed,
     refreshNow,
     awsConfig,
+    isLoading,
   } = useParking();
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -56,24 +48,30 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
   const getPageTitle = (pathname: string) => {
     switch (pathname) {
       case '/':
-        return { title: 'System Overview', category: 'SmartPark Dashboard' };
+        return { title: 'Monitoring Dashboard', category: 'SmartPark Overview' };
       case '/live-parking':
-        return { title: 'Live Parking Bays', category: '30 Slots Across 3 Floors' };
+        return { title: 'Live Parking Bays', category: '3-Floor Status Grid' };
       case '/iot-devices':
-        return { title: 'IoT Sensors & Gateway', category: 'AWS IoT Device Defender' };
+        return { title: 'IoT Device Inventory', category: 'DynamoDB Telemetry Nodes' };
       case '/activity-logs':
-        return { title: 'Activity & Audit Logs', category: 'Event Stream & Export' };
+        return { title: 'Activity Logs', category: 'Session State Changes' };
       case '/analytics':
-        return { title: 'Parking Analytics', category: 'Telemetry & Utilization' };
+        return { title: 'Occupancy Analytics', category: 'Live Capacity Breakdown' };
       case '/settings':
-        return { title: 'System & AWS Settings', category: 'Configuration & Modes' };
+        return { title: 'API & System Settings', category: 'AWS Configuration' };
       default:
-        return { title: 'Console', category: 'SmartPark Cloud' };
+        return { title: 'Console', category: 'SmartPark' };
     }
   };
 
   const pageMeta = getPageTitle(location.pathname);
   const unreadCount = notifications.length;
+
+  const formattedLastUpdated = lastApiTimestamp
+    ? new Date(lastApiTimestamp).toLocaleTimeString()
+    : lastRefreshed
+    ? lastRefreshed.toLocaleTimeString()
+    : 'Connecting...';
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between z-30 sticky top-0 shadow-xs">
@@ -81,7 +79,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
       <div className="flex items-center gap-3">
         <button
           onClick={onOpenMobileMenu}
-          className="lg:hidden p-2 rounded-md hover:bg-slate-100 text-slate-600"
+          className="lg:hidden p-2 rounded-md hover:bg-slate-100 text-slate-600 cursor-pointer"
           aria-label="Open sidebar"
         >
           <Menu className="w-5 h-5" />
@@ -108,7 +106,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search bay (F1-S01), plate, sensor..."
+            placeholder="Search bay ID (e.g. F1-S01) or device..."
             className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
           />
           {searchQuery && (
@@ -122,71 +120,51 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
         </div>
       </div>
 
-      {/* Right: Simulator Controls, AWS Region, Notifications, Refresh */}
+      {/* Right: AWS API connection indicator, timestamp, notifications, refresh */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Simulation Controls Widget */}
-        <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
-          <button
-            onClick={toggleSimulation}
-            title={isSimulating ? 'Pause Live Simulation' : 'Resume Live Simulation'}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-              isSimulating
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-white text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            {isSimulating ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                <Pause className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Live Stream</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden sm:inline">Resume</span>
-              </>
-            )}
-          </button>
-
-          {/* Quick trigger tick button */}
-          <button
-            onClick={triggerManualEvent}
-            title="Trigger Instant Vehicle Event"
-            className="p-1 rounded-md hover:bg-slate-200 text-slate-600 ml-1 transition-colors"
-          >
-            <Zap className="w-3.5 h-3.5 text-amber-600" />
-          </button>
-
-          {/* Speed selector */}
-          <select
-            value={simulationInterval}
-            onChange={(e) => setSimulationInterval(Number(e.target.value))}
-            title="Simulation Speed"
-            className="bg-transparent text-[11px] font-medium text-slate-700 border-none rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
-          >
-            <option value={3}>3s</option>
-            <option value={6}>6s</option>
-            <option value={10}>10s</option>
-          </select>
+        {/* Small AWS API Reachability Indicator */}
+        <div className="flex items-center">
+          {awsConfig.apiStatus === 'Healthy' ? (
+            <span
+              className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 text-xs font-semibold"
+              title="AWS API Gateway and DynamoDB are reachable"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="hidden sm:inline">AWS API:</span>
+              <span>Reachable</span>
+            </span>
+          ) : awsConfig.apiStatus === 'Checking' || isLoading ? (
+            <span className="inline-flex items-center gap-1.5 text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 text-xs font-semibold">
+              <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />
+              <span>Checking AWS...</span>
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1.5 text-rose-800 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200 text-xs font-semibold"
+              title={awsConfig.lastApiError || 'AWS API is unreachable'}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+              <span>AWS Unreachable</span>
+            </span>
+          )}
         </div>
 
-        {/* AWS Region Badge */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-600">
-          <Globe className="w-3.5 h-3.5 text-blue-600" />
-          <span className="font-mono text-[11px] font-medium">{awsConfig.region}</span>
+        {/* Verified Last Updated Time */}
+        <div className="hidden lg:flex items-center text-xs text-slate-500 font-mono bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">
+          <span className="text-slate-400 mr-1.5">Updated:</span>
+          <span className="font-semibold text-slate-700">{formattedLastUpdated}</span>
         </div>
 
-        {/* Notifications Dropdown */}
+        {/* Notifications Dropdown (Session transitions only) */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 relative transition-colors"
+            className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 relative transition-colors cursor-pointer"
             aria-label="Notifications"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-white" />
             )}
           </button>
 
@@ -194,12 +172,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
             <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
                 <span className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                  Real-Time Notifications
+                  Live State Transitions
                 </span>
                 {notifications.length > 0 && (
                   <button
                     onClick={clearAllNotifications}
-                    className="text-[11px] text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
                   >
                     Clear all
                   </button>
@@ -209,7 +187,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
               <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
                 {notifications.length === 0 ? (
                   <div className="p-6 text-center text-xs text-slate-400">
-                    No new telemetry notifications.
+                    No slot state changes observed in current session.
                   </div>
                 ) : (
                   notifications.map((n) => (
@@ -220,13 +198,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
                       <div className="flex items-start gap-2.5">
                         <div className="mt-0.5">
                           {n.type === 'success' ? (
-                            <CheckCircle className="w-4 h-4 text-emerald-600" />
-                          ) : n.type === 'warning' ? (
-                            <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          ) : n.type === 'alert' ? (
-                            <AlertTriangle className="w-4 h-4 text-rose-600" />
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           ) : (
-                            <Car className="w-4 h-4 text-blue-600" />
+                            <Car className="w-4 h-4 text-rose-600" />
                           )}
                         </div>
                         <div>
@@ -234,14 +208,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
                           <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
                             {n.message}
                           </p>
-                          <span className="text-[10px] text-slate-400 mt-1 block">
+                          <span className="text-[10px] text-slate-400 mt-1 block font-mono">
                             {new Date(n.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
                       </div>
                       <button
                         onClick={() => dismissNotification(n.id)}
-                        className="text-slate-400 hover:text-slate-600 p-1"
+                        className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -253,13 +227,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMenu }) => {
           )}
         </div>
 
-        {/* Refresh Button */}
+        {/* Manual Refresh Button */}
         <button
           onClick={refreshNow}
-          title={`Last synced: ${lastRefreshed.toLocaleTimeString()}`}
-          className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
+          disabled={isLoading}
+          title={`Click to refresh data from AWS (Updated: ${formattedLastUpdated})`}
+          className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer disabled:opacity-50"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
         </button>
       </div>
     </header>

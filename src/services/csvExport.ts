@@ -6,29 +6,21 @@ export function exportEventsToCSV(events: ActivityEvent[], filename = 'smartpark
     'Timestamp (ISO)',
     'Slot ID',
     'Floor',
-    'Event Type',
     'Previous Status',
     'New Status',
-    'Vehicle Plate',
-    'Vehicle Type',
-    'Event Source',
+    'Source',
     'Notes',
-    'Simulated',
   ];
 
   const rows = events.map((e) => [
     e.eventId,
     e.timestamp,
-    e.slotId,
-    e.floorId,
-    e.eventType,
+    e.slotId || 'Unassigned',
+    e.floorId || 'N/A',
     e.previousStatus,
     e.newStatus,
-    e.vehicleId ? `"${e.vehicleId}"` : 'N/A',
-    e.vehicleType || 'N/A',
-    `"${e.source.replace(/"/g, '""')}"`,
+    `"${(e.source || 'AWS DynamoDB').replace(/"/g, '""')}"`,
     e.notes ? `"${e.notes.replace(/"/g, '""')}"` : '',
-    e.isSimulated ? 'Yes' : 'No',
   ]);
 
   const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
